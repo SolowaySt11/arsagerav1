@@ -114,7 +114,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        " *Арсагера — Аналитика фондов*\n\n"
+        " 🔶*Арсагера — Аналитика фондов*\n\n"
         "Выбери фонд.\n\n"
         "📌 *Акции 6.4* временно недоступны. Ведутся технические работы.",
         reply_markup=reply_markup,
@@ -178,13 +178,49 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
 
+async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Анализирует изменения фондов за последний день"""
+    funds = {
+        "fa": "📈 Фонд акций",
+        "f4si": "📊 Смешанный фонд",
+        "fo": "📉 Облигации KP 1.55"
+    }
+    
+    result = "📊 *Новости фондов за последний день*\n\n"
+    threshold = 2.0  # порог срабатывания ±2%
+    
+    for code, name in funds.items():
+        data = get_all_fund_data(code)
+        if not data or len(data) < 2:
+            result += f"{name}: ❌ нет данных\n"
+            continue
+            
+        current = data[-1]['nav_per_share']
+        prev = data[-2]['nav_per_share']  # предыдущее значение (вчера)
+        
+        change_percent = ((current - prev) / prev) * 100
+        
+        if change_percent > threshold:
+            status = f"📈 рост (+{round(change_percent, 2)}%)"
+        elif change_percent < -threshold:
+            status = f"📉 падение ({round(change_percent, 2)}%)"
+        else:
+            status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
+        
+        result += f"{name}: {status}\n"
+    
+    result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
+    result += "📌 Для подробной статистики — /start"
+    
+    await update.message.reply_text(result, parse_mode="Markdown")
+
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("check", check_changes))  # ← добавь эту строку
     app.add_handler(CallbackQueryHandler(button_callback))
     print("Бот Арсагера (финальная версия) запущен...")
     app.run_polling()
-
 if __name__ == "__main__":
     main()
