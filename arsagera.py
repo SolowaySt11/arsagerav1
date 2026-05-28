@@ -7,17 +7,15 @@ TOKEN = "8776459772:AAGNtlF2uFC22z_oM4Fcha_GKk_Ho6jkWnI"
 
 # ---------- ФУНКЦИЯ ПОЛУЧЕНИЯ ДАННЫХ ФОНДА ----------
 def get_fund_metrics(fund_code):
-    """
-    fund_code: 'fa', 'f4si', 'fe4', 'fo'
-    Возвращает {'date': 'YYYY-MM-DD', 'price': float, 'assets': float}
-    """
     url = f"https://arsagera.ru/api/v1/funds/{fund_code}/fund-metrics/"
     try:
         response = requests.get(url, timeout=15)
         if response.status_code == 200:
             data = response.json()
             if data and data.get('data'):
-                latest = data['data'][0]
+                # Сортируем по дате в убывающем порядке (сначала новые)
+                sorted_data = sorted(data['data'], key=lambda x: x['date'], reverse=True)
+                latest = sorted_data[0]
                 return {
                     'date': latest['date'],
                     'price': latest['nav_per_share'],
