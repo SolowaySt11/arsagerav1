@@ -1,42 +1,107 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 TOKEN = "8776459772:AAGNtlF2uFC22z_oM4Fcha_GKk_Ho6jkWnI"
 
-# ---------- ФУНКЦИЯ ПОЛУЧЕНИЯ ДАННЫХ ФОНДА ----------
-def get_fund_metrics(fund_code):
+# ---------- ФУНКЦИЯ ЗАГРУЗКИ ВСЕХ ДАННЫХ ФОНДА ----------
+def get_all_fund_data(fund_code):
     url = f"https://arsagera.ru/api/v1/funds/{fund_code}/fund-metrics/"
     try:
         response = requests.get(url, timeout=15)
         if response.status_code == 200:
             data = response.json()
             if data and data.get('data'):
-                # Сортируем по дате в убывающем порядке (сначала новые)
-                sorted_data = sorted(data['data'], key=lambda x: x['date'], reverse=True)
-                latest = sorted_data[0]
-                return {
-                    'date': latest['date'],
-                    'price': latest['nav_per_share'],
-                    'assets': latest.get('total_net_assets', 0)
-                }
-        return None
+                # Сортируем по дате (старые → новые)
+                return sorted(data['data'], key=lambda x: x['date'])
+        return []
     except Exception as e:
         print(f"Ошибка API для {fund_code}: {e}")
-        return None
+        return []
+
+# ---------- РАСЧЁТ ИЗМЕНЕНИЙ ЗА ПЕРИОДЫ ----------
+def calculate_changes(data, current_price):
+    if not data:
+        return {}
+    
+    # Словарь с целевыми датами для каждого периода
+    target_dates = {
+        '1 день': datetime.now() - timedelta(days=1),
+        '1 неделя': datetime.now() - timedelta(weeks=1),
+        '1 месяц': datetime.now() - relativedelta(months=1),
+        '3 месяца': datetime.now() - relativedelta(months=3),
+        '1 год': datetime.now() - relativedelta(years=1),
+        '5 лет': datetime.now() - relativedelta(years=5)
+    }
+    
+    changes = {}
+    
+    for period, target_date in target_dates.items():
+        # Ищем ближайшую запись к целевой дате
+        closest = None
+        closest_diff = None
+        
+        for entry in data:
+            entry_date = datetime.strptime(entry['date'], "%Y-%m-%d")
+            if entry_date <= target_date:
+                diff = (target_date - entry_date).days
+                if closest_diff is None or diff < closest_diff:
+                    closest_diff = diff
+                    closest = entry
+        
+        if closest:
+            old_price = closest['nav_per_share']
+            rub_change = current_price - old_price
+            percent_change = (rub_change / old_price) * 100 if old_price != 0 else 0
+            changes[period] = {'rub': rub_change, 'percent': percent_change, 'old_date': closest['date']}
+    
+    return changes
+
+# ---------- ФОРМИРОВАНИЕ ТЕКСТА ОТВЕТА ----------
+def format_response(fund_code, fund_name):
+    data = get_all_fund_data(fund_code)
+    if not data:
+        return f"❌ Не удалось получить данные для {fund_name}"
+    
+    latest = data[-1]  # последняя запись (самая свежая)
+    current_price = latest['nav_per_share']
+    current_date = latest['date']
+    
+    # Форматируем дату
+    date_obj = datetime.strptime(current_date, "%Y-%m-%d")
+    formatted_date = date_obj.strftime("%d.%m.%Y")
+    
+    # Цена с пробелами как разделителями тысяч
+    price_str = f"{current_price:,.2f}".replace(",", " ")
+    
+    # Рассчитываем изменения
+    changes = calculate_changes(data, current_price)
+    
+    # Собираем текст
+    text = f"{fund_name}\n\n💰 Стоимость пая: *{price_str}* ₽\n📅 Данные на {formatted_date}\n\n📊 *Изменения:*\n"
+    
+    for period, change in changes.items():
+        sign = "+" if change['rub'] >= 0 else ""
+        rub_str = f"{sign}{change['rub']:,.2f}".replace(",", " ")
+        percent_str = f"{sign}{change['percent']:.2f}".replace(".", ",")
+        text += f"▫️ *За {period}:* {percent_str}% ({rub_str} ₽)\n"
+    
+    return text
 
 # ---------- ГЛАВНОЕ МЕНЮ ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("📈 Фонд акций (fa)", callback_data="fa")],
-        [InlineKeyboardButton("📊 Смешанный фонд (f4si)", callback_data="f4si")],
-        [InlineKeyboardButton("📉 Облигации KP 1.55 (fo)", callback_data="fo")]
+        [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
+        [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
+        [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "🏦 *Арсагера — Аналитика фондов*\n\n"
-        "Выбери фонд для получения текущей стоимости пая:",
+        "Выбери фонд для получения текущей стоимости пая и динамики изменения:\n"
+        "▪️ за день\n▪️ неделю\n▪️ месяц\n▪️ 3 месяца\n▪️ год\n▪️ 5 лет",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -46,63 +111,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     fund_code = query.data
-
+    
     fund_names = {
         "fa": "📈 Фонд акций",
         "f4si": "📊 Смешанный фонд",
         "fo": "📉 Облигации KP 1.55"
     }
-
+    
     if fund_code in fund_names:
-        data = get_fund_metrics(fund_code)
-        if data:
-            date_obj = datetime.strptime(data['date'], "%Y-%m-%d")
-            formatted_date = date_obj.strftime("%d.%m.%Y")
-            price_str = f"{data['price']:,.2f}".replace(",", " ")
-
-            # Базовый текст
-            text = (
-                f"{fund_names[fund_code]}\n\n"
-                f"💰 Стоимость пая: *{price_str}* ₽\n"
-                f"📅 Данные на {formatted_date}\n\n"
-                f"📊 *Изменения:*"
-            )
-
-            # Пробуем добавить аналитику (если есть в ответе API)
-            # Поля могут называться иначе — подстрой под реальный JSON
-            # Сначала проверим, есть ли данные в ответе
-            # Это пример, адаптируй под реальные ключи из API
-            try:
-                # Если API возвращает изменения за периоды
-                # Например: 'nav_per_share_change_1m' — за месяц
-                # 'nav_per_share_change_3m' — за 3 месяца
-                # 'nav_per_share_change_6m' — за полгода
-                # 'nav_per_share_change_ytd' — с начала года
-
-                # Это ПРИМЕР — замени на реальные ключи из твоего JSON
-                changes = {
-                    "За 1 месяц": data.get('nav_per_share_change_1m'),
-                    "За 3 месяца": data.get('nav_per_share_change_3m'),
-                    "За 6 месяцев": data.get('nav_per_share_change_6m'),
-                    "С начала года": data.get('nav_per_share_change_ytd')
-                }
-
-                for period, value in changes.items():
-                    if value is not None:
-                        sign = "+" if value > 0 else ""
-                        text += f"\n• {period}: {sign}{value:.2f}%"
-            except Exception as e:
-                # Если с аналитикой что-то пошло не так — просто пропускаем
-                print(f"Ошибка при добавлении аналитики: {e}")
-                pass
-
-            await query.edit_message_text(text, parse_mode="Markdown")
-        else:
-            text = f"❌ Не удалось получить данные для {fund_names[fund_code]}"
-            await query.edit_message_text(text, parse_mode="Markdown")
+        text = format_response(fund_code, fund_names[fund_code])
+        await query.edit_message_text(text, parse_mode="Markdown")
         return
-
+    
+    # Если неизвестный callback — просто покажем меню
     await start(update, context)
+
 # ---------- HELP ----------
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
@@ -112,8 +135,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(button_callback))
-
-    print("Бот Арсагера запущен...")
+    
+    print("Бот Арсагера (с аналитикой за 5 лет) запущен...")
     app.run_polling()
 
 if __name__ == "__main__":
