@@ -145,10 +145,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
+    # Кнопка "Назад" в главное меню
     if data == "main_menu":
         await start(update, context)
         return
 
+    # Акции (заглушка)
     if data == "stocks":
         await stocks_menu(update, context)
         return
@@ -182,6 +184,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_chart(update, fund_code, fund_names[fund_code], days, period_name)
         return
 
+    # Если ничего не подошло — возвращаем в главное меню
     await start(update, context)
 
 # ---------- HELP ----------
