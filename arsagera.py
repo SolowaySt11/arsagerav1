@@ -97,15 +97,13 @@ async def send_chart(update, fund_code, fund_name, period_days, period_name):
 
 async def stocks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    keyboard = [
-        [InlineKeyboardButton("🛢️ Газпром", callback_data="GAZP")],
-        [InlineKeyboardButton("🏦 Сбербанк", callback_data="SBER")],
-        [InlineKeyboardButton("⛽ Лукойл", callback_data="LKOH")],
-        [InlineKeyboardButton("🌐 Яндекс", callback_data="YDEX")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="main_menu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text("📈 Выбери акцию:", reply_markup=reply_markup)
+    await query.edit_message_text(
+        "📈 *Акции 6.4*\n\n"
+        "Данный раздел временно недоступен.\n"
+        "Ведутся технические работы.\n\n"
+        "🔙 Вернуться в главное меню — /start",
+        parse_mode="Markdown"
+    )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -138,7 +136,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.effective_chat.send_message(
-            "🏦 *Арсагера — Аналитика фондов*\n\n"
+            "🔶 *Арсагера — Аналитика фондов*\n\n"
             "Выбери фонд.\n\n"
             "📌 *Акции* временно недоступны. Ведутся технические работы.",
             reply_markup=reply_markup,
