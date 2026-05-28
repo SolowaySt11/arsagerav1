@@ -8,7 +8,6 @@ import io
 
 TOKEN = "8776459772:AAGNtlF2uFC22z_oM4Fcha_GKk_Ho6jkWnI"
 
-# ---------- ФУНКЦИЯ ЗАГРУЗКИ ВСЕХ ДАННЫХ ФОНДА ----------
 def get_all_fund_data(fund_code):
     url = f"https://arsagera.ru/api/v1/funds/{fund_code}/fund-metrics/"
     try:
@@ -22,11 +21,9 @@ def get_all_fund_data(fund_code):
         print(f"Ошибка API для {fund_code}: {e}")
         return []
 
-# ---------- РАСЧЁТ ИЗМЕНЕНИЙ ЗА ПЕРИОДЫ ----------
 def calculate_changes(data, current_price):
     if not data:
         return {}
-    
     target_dates = {
         '1 день': datetime.now() - timedelta(days=1),
         '1 неделя': datetime.now() - timedelta(weeks=1),
@@ -35,7 +32,6 @@ def calculate_changes(data, current_price):
         '1 год': datetime.now() - relativedelta(years=1),
         '5 лет': datetime.now() - relativedelta(years=5)
     }
-    
     changes = {}
     for period, target_date in target_dates.items():
         closest = None
@@ -54,12 +50,10 @@ def calculate_changes(data, current_price):
             changes[period] = {'rub': rub_change, 'percent': percent_change, 'old_date': closest['date']}
     return changes
 
-# ---------- ФОРМИРОВАНИЕ ТЕКСТА ОТВЕТА ----------
 def format_response(fund_code, fund_name):
     data = get_all_fund_data(fund_code)
     if not data:
         return f"❌ Не удалось получить данные для {fund_name}"
-    
     latest = data[-1]
     current_price = latest['nav_per_share']
     current_date = latest['date']
@@ -67,7 +61,6 @@ def format_response(fund_code, fund_name):
     formatted_date = date_obj.strftime("%d.%m.%Y")
     price_str = f"{current_price:,.2f}".replace(",", " ")
     changes = calculate_changes(data, current_price)
-    
     text = f"{fund_name}\n\n💰 Стоимость пая: *{price_str}* ₽\n📅 Данные на {formatted_date}\n\n📊 *Изменения:*\n"
     for period, change in changes.items():
         sign = "+" if change['rub'] >= 0 else ""
@@ -77,23 +70,18 @@ def format_response(fund_code, fund_name):
         text += f"▫️ *За {period}:* {emoji} {percent_str}% ({rub_str} ₽)\n"
     return text
 
-# ---------- ПОСТРОЕНИЕ ГРАФИКА ----------
 async def send_chart(update, fund_code, fund_name, period_days, period_name):
     data = get_all_fund_data(fund_code)
     if not data:
         await update.callback_query.message.reply_text(f"❌ Нет данных для построения графика {fund_name}")
         return
-    
     cutoff_date = datetime.now() - timedelta(days=period_days)
     filtered = [entry for entry in data if datetime.strptime(entry['date'], "%Y-%m-%d") >= cutoff_date]
-    
     if not filtered:
         await update.callback_query.message.reply_text(f"❌ Недостаточно данных для периода {period_name}")
         return
-    
     dates = [datetime.strptime(item['date'], "%Y-%m-%d") for item in filtered]
     prices = [item['nav_per_share'] for item in filtered]
-    
     plt.figure(figsize=(10, 5))
     plt.plot(dates, prices, marker='o', linestyle='-', linewidth=2, markersize=4)
     plt.title(f"{fund_name} — динамика за {period_name}")
@@ -101,15 +89,12 @@ async def send_chart(update, fund_code, fund_name, period_days, period_name):
     plt.ylabel("Стоимость пая, ₽")
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xticks(rotation=45)
-    
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches="tight")
     buf.seek(0)
     plt.close()
-    
     await update.callback_query.message.reply_photo(buf, caption=f"📈 {fund_name} — динамика за {period_name}")
 
-# ---------- МЕНЮ АКЦИЙ (заглушка) ----------
 async def stocks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     keyboard = [
@@ -122,40 +107,49 @@ async def stocks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text("📈 Выбери акцию:", reply_markup=reply_markup)
 
-# ---------- ГЛАВНОЕ МЕНЮ ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
         [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
         [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
-        [InlineKeyboardButton("📈 Акции", callback_data="stocks")]
+        [InlineKeyboardButton("📈 Акции 6.4", callback_data="stocks")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🏦 *Арсагера — Аналитика фондов*\n\n"
+        " *Арсагера — Аналитика фондов*\n\n"
         "Выбери фонд.\n\n"
-        "📌 *Акции* временно недоступны. Ведутся технические работы.",
+        "📌 *Акции 6.4* временно недоступны. Ведутся технические работы.",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
 
-# ---------- ОБРАБОТЧИК КНОПОК ----------
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
 
-    # Кнопка "Назад" в главное меню
     if data == "main_menu":
-        await start(update, context)
+        await query.message.delete()
+        keyboard = [
+            [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
+            [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
+            [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
+            [InlineKeyboardButton("📈 Акции 6.4", callback_data="stocks")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.effective_chat.send_message(
+            "🏦 *Арсагера — Аналитика фондов*\n\n"
+            "Выбери фонд.\n\n"
+            "📌 *Акции* временно недоступны. Ведутся технические работы.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
         return
 
-    # Акции (заглушка)
     if data == "stocks":
         await stocks_menu(update, context)
         return
 
-    # Фонды
     if data in ["fa", "f4si", "fo"]:
         fund_names = {"fa": "📈 Фонд акций", "f4si": "📊 Смешанный фонд", "fo": "📉 Облигации KP 1.55"}
         text = format_response(data, fund_names[data])
@@ -172,7 +166,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
         return
 
-    # Графики
     if data.startswith("graph_"):
         parts = data.split("_")
         fund_code = parts[1]
@@ -184,10 +177,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_chart(update, fund_code, fund_names[fund_code], days, period_name)
         return
 
-    # Если ничего не подошло — возвращаем в главное меню
-    await start(update, context)
-
-# ---------- HELP ----------
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
 
@@ -196,8 +185,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(button_callback))
-
-    print("Бот Арсагера (графики за все периоды) запущен...")
+    print("Бот Арсагера (финальная версия) запущен...")
     app.run_polling()
 
 if __name__ == "__main__":
