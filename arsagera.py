@@ -86,7 +86,11 @@ def format_response(fund_code, fund_name):
         sign = "+" if change['rub'] >= 0 else ""
         rub_str = f"{sign}{change['rub']:,.2f}".replace(",", " ")
         percent_str = f"{sign}{change['percent']:.2f}".replace(".", ",")
-        text += f"▫️ *За {period}:* {percent_str}% ({rub_str} ₽)\n"
+        if change['percent'] >= 0:
+            emoji = "🟢"
+        else:
+            emoji = "🔴"
+        text += f"▫️ *За {period}:* {emoji} {percent_str}% ({rub_str} ₽)\n"
     
     return text
 
@@ -99,9 +103,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🏦 *Арсагера — Аналитика фондов*\n\n"
+        "🔶 *Арсагера — Аналитика фондов*\n\n"
         "Выбери фонд для получения текущей стоимости пая и динамики изменения:\n"
-        "▪️ за день\n▪️ неделю\n▪️ месяц\n▪️ 3 месяца\n▪️ год\n▪️ 5 лет",
+        "Данные рассчитаны по динамике цен на ближайшие к календарным даты, могут отличаться от официальных отчётов УК на ±1–2%»",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -136,7 +140,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("Бот Арсагера (с аналитикой за 5 лет) запущен...")
+    print("Бот Арсагера запущен...")
     app.run_polling()
 
 if __name__ == "__main__":
