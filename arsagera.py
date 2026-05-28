@@ -147,7 +147,6 @@ async def analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_analytics_chart(update, period_days, period_name):
     query = update.callback_query
-    chat_id = query.message.chat_id
     funds = {
         "fa": ("Фонд акций", "blue"),
         "f4si": ("Смешанный фонд", "green"),
@@ -185,8 +184,8 @@ async def send_analytics_chart(update, period_days, period_name):
     buf.seek(0)
     plt.close()
     
-    await query.edit_message_text("📊 Аналитика готова:")
-    await context.bot.send_photo(chat_id=chat_id, photo=buf)
+    # Отправляем фото в чат
+    await update.effective_chat.send_photo(photo=buf, caption=f"📊 Динамика фондов Арсагеры за {period_name}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
