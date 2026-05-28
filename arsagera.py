@@ -31,7 +31,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📈 Фонд акций (fa)", callback_data="fa")],
         [InlineKeyboardButton("📊 Смешанный фонд (f4si)", callback_data="f4si")],
-        [InlineKeyboardButton("⚙️ Акции 6.4 (fe4)", callback_data="fe4")],
         [InlineKeyboardButton("📉 Облигации KP 1.55 (fo)", callback_data="fo")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -48,35 +47,62 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     fund_code = query.data
 
-    # Словарь для красивых названий
     fund_names = {
         "fa": "📈 Фонд акций",
         "f4si": "📊 Смешанный фонд",
-        "fe4": "⚙️ Акции 6.4",
         "fo": "📉 Облигации KP 1.55"
     }
 
     if fund_code in fund_names:
         data = get_fund_metrics(fund_code)
         if data:
-            # Преобразуем дату в формат ДД.ММ.ГГГГ
             date_obj = datetime.strptime(data['date'], "%Y-%m-%d")
             formatted_date = date_obj.strftime("%d.%m.%Y")
-            # Форматируем цену с разделителями тысяч
             price_str = f"{data['price']:,.2f}".replace(",", " ")
+
+            # Базовый текст
             text = (
                 f"{fund_names[fund_code]}\n\n"
                 f"💰 Стоимость пая: *{price_str}* ₽\n"
-                f"📅 Данные на {formatted_date}"
+                f"📅 Данные на {formatted_date}\n\n"
+                f"📊 *Изменения:*"
             )
+
+            # Пробуем добавить аналитику (если есть в ответе API)
+            # Поля могут называться иначе — подстрой под реальный JSON
+            # Сначала проверим, есть ли данные в ответе
+            # Это пример, адаптируй под реальные ключи из API
+            try:
+                # Если API возвращает изменения за периоды
+                # Например: 'nav_per_share_change_1m' — за месяц
+                # 'nav_per_share_change_3m' — за 3 месяца
+                # 'nav_per_share_change_6m' — за полгода
+                # 'nav_per_share_change_ytd' — с начала года
+
+                # Это ПРИМЕР — замени на реальные ключи из твоего JSON
+                changes = {
+                    "За 1 месяц": data.get('nav_per_share_change_1m'),
+                    "За 3 месяца": data.get('nav_per_share_change_3m'),
+                    "За 6 месяцев": data.get('nav_per_share_change_6m'),
+                    "С начала года": data.get('nav_per_share_change_ytd')
+                }
+
+                for period, value in changes.items():
+                    if value is not None:
+                        sign = "+" if value > 0 else ""
+                        text += f"\n• {period}: {sign}{value:.2f}%"
+            except Exception as e:
+                # Если с аналитикой что-то пошло не так — просто пропускаем
+                print(f"Ошибка при добавлении аналитики: {e}")
+                pass
+
+            await query.edit_message_text(text, parse_mode="Markdown")
         else:
             text = f"❌ Не удалось получить данные для {fund_names[fund_code]}"
-        await query.edit_message_text(text, parse_mode="Markdown")
+            await query.edit_message_text(text, parse_mode="Markdown")
         return
 
-    # Если вдруг неизвестный callback — просто покажем меню
     await start(update, context)
-
 # ---------- HELP ----------
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
