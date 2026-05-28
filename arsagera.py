@@ -95,31 +95,98 @@ async def send_chart(update, fund_code, fund_name, period_days, period_name):
     plt.close()
     await update.callback_query.message.reply_photo(buf, caption=f"📈 {fund_name} — динамика за {period_name}")
 
-async def stocks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.edit_message_text(
-        "📈 *Акции 6.4*\n\n"
-        "Данный раздел временно недоступен.\n"
-        "Ведутся технические работы.\n\n"
-        "🔙 Вернуться в главное меню — /start",
-        parse_mode="Markdown"
-    )
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
         [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
         [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
-        [InlineKeyboardButton("📈 Акции 6.4", callback_data="stocks")]
+        [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        " 🔶*Арсагера — Аналитика фондов*\n\n"
-        "Выбери фонд.\n\n"
-        "📌 *Акции 6.4* временно недоступны. Ведутся технические работы.",
+        "🔶 *Арсагера — Аналитика фондов*\n\n"
+        "Выбери фонд для детальной аналитики или воспользуйся сравнением.",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
+
+async def analytics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("1 день", callback_data="analytics_1")],
+        [InlineKeyboardButton("1 неделя", callback_data="analytics_7")],
+        [InlineKeyboardButton("1 месяц", callback_data="analytics_30")],
+        [InlineKeyboardButton("3 месяца", callback_data="analytics_90")],
+        [InlineKeyboardButton("1 год", callback_data="analytics_365")],
+        [InlineKeyboardButton("5 лет", callback_data="analytics_1825")],
+        [InlineKeyboardButton("🔙 Назад", callback_data="main_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "📊 *Аналитика фондов*\n\nВыбери период для сравнения:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+async def analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    keyboard = [
+        [InlineKeyboardButton("1 день", callback_data="analytics_1")],
+        [InlineKeyboardButton("1 неделя", callback_data="analytics_7")],
+        [InlineKeyboardButton("1 месяц", callback_data="analytics_30")],
+        [InlineKeyboardButton("3 месяца", callback_data="analytics_90")],
+        [InlineKeyboardButton("1 год", callback_data="analytics_365")],
+        [InlineKeyboardButton("5 лет", callback_data="analytics_1825")],
+        [InlineKeyboardButton("🔙 Назад", callback_data="main_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        "📊 *Аналитика фондов*\n\nВыбери период для сравнения:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+async def send_analytics_chart(update, period_days, period_name):
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    funds = {
+        "fa": ("Фонд акций", "blue"),
+        "f4si": ("Смешанный фонд", "green"),
+        "fo": ("Облигации KP 1.55", "orange")
+    }
+    
+    cutoff_date = datetime.now() - timedelta(days=period_days)
+    
+    plt.figure(figsize=(10, 5))
+    
+    for code, (name, color) in funds.items():
+        data = get_all_fund_data(code)
+        if not data:
+            continue
+        filtered = [entry for entry in data if datetime.strptime(entry['date'], "%Y-%m-%d") >= cutoff_date]
+        if not filtered:
+            continue
+        dates = [datetime.strptime(item['date'], "%Y-%m-%d") for item in filtered]
+        prices = [item['nav_per_share'] for item in filtered]
+        plt.plot(dates, prices, label=name, color=color, linewidth=2)
+    
+    if not plt.gca().has_data():
+        await query.edit_message_text("❌ Недостаточно данных для построения аналитики.")
+        return
+    
+    plt.title(f"Динамика фондов Арсагеры за {period_name}")
+    plt.xlabel("Дата")
+    plt.ylabel("Стоимость пая, ₽")
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend()
+    plt.xticks(rotation=45)
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches="tight")
+    buf.seek(0)
+    plt.close()
+    
+    await query.edit_message_text("📊 Аналитика готова:")
+    await context.bot.send_photo(chat_id=chat_id, photo=buf)
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -132,20 +199,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
             [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
             [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
-            [InlineKeyboardButton("📈 Акции 6.4", callback_data="stocks")]
+            [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.effective_chat.send_message(
             "🔶 *Арсагера — Аналитика фондов*\n\n"
-            "Выбери фонд.\n\n"
-            "📌 *Акции* временно недоступны. Ведутся технические работы.",
+            "Выбери фонд для детальной аналитики или воспользуйся сравнением.",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
         return
 
-    if data == "stocks":
-        await stocks_menu(update, context)
+    if data == "analytics":
+        await analytics_menu(update, context)
         return
 
     if data in ["fa", "f4si", "fo"]:
@@ -175,11 +241,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_chart(update, fund_code, fund_names[fund_code], days, period_name)
         return
 
+    if data.startswith("analytics_"):
+        days = int(data.split("_")[1])
+        period_names = {1: "1 день", 7: "1 неделя", 30: "1 месяц", 90: "3 месяца", 365: "1 год", 1825: "5 лет"}
+        period_name = period_names.get(days, f"{days} дней")
+        await query.edit_message_text(f"📊 Строю аналитику за {period_name}, подождите...")
+        await send_analytics_chart(update, days, period_name)
+        return
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
 
 async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Анализирует изменения фондов за последний день"""
     funds = {
         "fa": "📈 Фонд акций",
         "f4si": "📊 Смешанный фонд",
@@ -187,17 +260,15 @@ async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     result = "📊 *Новости фондов за последний день*\n\n"
-    threshold = 2.0  # порог срабатывания ±2%
+    threshold = 2.0
     
     for code, name in funds.items():
         data = get_all_fund_data(code)
         if not data or len(data) < 2:
             result += f"{name}: ❌ нет данных\n"
             continue
-            
         current = data[-1]['nav_per_share']
-        prev = data[-2]['nav_per_share']  # предыдущее значение (вчера)
-        
+        prev = data[-2]['nav_per_share']
         change_percent = ((current - prev) / prev) * 100
         
         if change_percent > threshold:
@@ -206,21 +277,21 @@ async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status = f"📉 падение ({round(change_percent, 2)}%)"
         else:
             status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
-        
         result += f"{name}: {status}\n"
     
     result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
     result += "📌 Для подробной статистики — /start"
-    
     await update.message.reply_text(result, parse_mode="Markdown")
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("check", check_changes))  # ← добавь эту строку
+    app.add_handler(CommandHandler("check", check_changes))
+    app.add_handler(CommandHandler("analytics", analytics_command))
     app.add_handler(CallbackQueryHandler(button_callback))
-    print("Бот Арсагера (финальная версия) запущен...")
+    print("Бот Арсагера с аналитикой запущен...")
     app.run_polling()
+
 if __name__ == "__main__":
     main()
