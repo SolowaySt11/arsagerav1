@@ -252,13 +252,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Используй /start для начала работы.")
 
 async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Анализирует изменения фондов за последние 3 дня"""
     funds = {
         "fa": "📈 Фонд акций",
         "f4si": "📊 Смешанный фонд",
         "fo": "📉 Облигации KP 1.55"
     }
     
-    result = "📊 *Новости фондов за последний день*\n\n"
+    result = "📊 *Новости фондов за последние 3 дня*\n\n"
     threshold = 2.0
     
     for code, name in funds.items():
@@ -266,20 +267,40 @@ async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not data or len(data) < 2:
             result += f"{name}: ❌ нет данных\n"
             continue
+            
         current = data[-1]['nav_per_share']
-        prev = data[-2]['nav_per_share']
-        change_percent = ((current - prev) / prev) * 100
         
-        if change_percent > threshold:
-            status = f"📈 рост (+{round(change_percent, 2)}%)"
-        elif change_percent < -threshold:
-            status = f"📉 падение ({round(change_percent, 2)}%)"
+        # Ищем цену 3 дня назад (или ближайшую доступную)
+        target_date = datetime.now() - timedelta(days=3)
+        closest = None
+        closest_diff = None
+        
+        for entry in data:
+            entry_date = datetime.strptime(entry['date'], "%Y-%m-%d")
+            if entry_date <= target_date:
+                diff = (target_date - entry_date).days
+                if closest_diff is None or diff < closest_diff:
+                    closest_diff = diff
+                    closest = entry
+        
+        if closest:
+            old_price = closest['nav_per_share']
+            change_percent = ((current - old_price) / old_price) * 100
+            
+            if change_percent > threshold:
+                status = f"📈 рост (+{round(change_percent, 2)}%)"
+            elif change_percent < -threshold:
+                status = f"📉 падение ({round(change_percent, 2)}%)"
+            else:
+                status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
+            
+            result += f"{name}: {status}\n"
         else:
-            status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
-        result += f"{name}: {status}\n"
+            result += f"{name}: ❌ нет данных за 3 дня\n"
     
     result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
     result += "📌 Для подробной статистики — /start"
+    
     await update.message.reply_text(result, parse_mode="Markdown")
 
 def main():
