@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 import matplotlib.pyplot as plt
 import io
 
-TOKEN = "8776459772:AAGNtlF2uFC22z_oM4Fcha_GKk_Ho6jkWnI"
+TOKEN = "8776459772:AAHJZrqZ_IYOGpP6OD67dkG1GOBdHaC0XLo"
 
 def get_all_fund_data(fund_code):
     url = f"https://arsagera.ru/api/v1/funds/{fund_code}/fund-metrics/"
