@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "id": "lg_1",
+      "question": "About a century ago people got __________________ (INFORM) from newspapers since they were the only mass media that existed in those times.",
+      "answer": "information",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": "lg_2",
+      "question": "Radio and television seemed __________________ (WONDER) inventions as they broadcasted audio and visual images.",
+      "answer": "wonderful",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": "lg_3",
+      "question": "Now the audience has an opportunity to create the news, share their ________________ (PERSON) knowledge and express their opinions.",
+      "answer": "personal",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": "lg_4",
+      "question": "The Internet supposes interaction, which makes it very __________________ (ATTRACT) to people.",
+      "answer": "attractive",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": "lg_5",
+      "question": "And what about the newspapers? Will they __________________ (APPEAR) in the near future?",
+      "answer": "disappear",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": "lg_6",
+      "question": "I wish they wouldn't as I like starting my day with a cup of coffee and a __________________ (TRADITION) newspaper.",
+      "answer": "traditional",
+      "part_of_speech": "adjective"
+    }
+  ]
+}
