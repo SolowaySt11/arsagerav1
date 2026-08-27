@@ -13,8 +13,8 @@ TOKEN = "8776459772:AAHJZrqZ_IYOGpP6OD67dkG1GOBdHaC0XLo"
 LECTURES = [
     {
         "id": "lecture_1",
-        "title": "📚 Введение в инвестиции",
+        "title": "📚 Лекция 1. Инвестиции: трудности выбора",
         "description": "Базовые понятия: что такое инвестиции, виды активов, риск и доходность.",
-        "file_id": "СЮДА ВСТАВИШЬ FILE_ID ПОСЛЕ ОТПРАВКИ"  # ⬅️ ⬅️ ⬅️
+        "file_id": "CQACAgIAAxkBAAIBsmqQpNoNR85Hd-d7k6H6X9bAZt7zAAKxoQACjCeBSBw3muirYi02PQQ"
     },
 ]
