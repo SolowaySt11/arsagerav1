@@ -316,6 +316,7 @@ async def send_analytics_chart(update, period_days, period_name):
     await update.effective_chat.send_photo(photo=buf, caption=f"📊 Динамика фондов Арсагеры за {period_name}")
 
 async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Анализирует изменения фондов за последние 3 дня"""
     funds = {
         "fa": "📈 Фонд акций",
         "f4si": "📊 Смешанный фонд",
@@ -363,6 +364,12 @@ async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
     result += "📌 Для подробной статистики — /start"
     
+    # Проверяем, откуда пришёл вызов (из команды или из кнопки)
+    if update.message:
+        await update.message.reply_text(result, parse_mode="Markdown")
+    else:
+        await update.effective_chat.send_message(result, parse_mode="Markdown")
+    
     await update.message.reply_text(result, parse_mode="Markdown")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -398,6 +405,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "check_changes":
+        await query.edit_message_text("📊 Загружаю новости фондов...")
         await check_changes(update, context)
         return
 
