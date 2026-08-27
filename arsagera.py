@@ -5,8 +5,30 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import matplotlib.pyplot as plt
 import io
+import os
 
 TOKEN = "8776459772:AAHJZrqZ_IYOGpP6OD67dkG1GOBdHaC0XLo"
+
+# ===== ЛЕКЦИИ =====
+LECTURES = [
+    {
+        "id": "lecture_1",
+        "title": "📚 Введение в инвестиции",
+        "description": "Базовые понятия: что такое инвестиции, виды активов, риск и доходность.",
+        "file_id": "ВАШ_FILE_ID_1"  # Замени на реальный file_id из Telegram
+    },
+    # Добавляй сюда новые лекции по мере добавления
+]
+
+def get_lecture_buttons():
+    """Создаёт кнопки для лекций"""
+    keyboard = []
+    for lecture in LECTURES:
+        keyboard.append([InlineKeyboardButton(lecture["title"], callback_data=f"lecture_{lecture['id']}")])
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(keyboard)
+
+# ===== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ =====
 
 def get_all_fund_data(fund_code):
     url = f"https://arsagera.ru/api/v1/funds/{fund_code}/fund-metrics/"
@@ -100,15 +122,63 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
         [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
         [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
-        [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")]
+        [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")],
+        [InlineKeyboardButton("🎓 Курс лекций", callback_data="lectures")],
+        [InlineKeyboardButton("📊 Новости фондов", callback_data="check_changes")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "🔶 *Арсагера — Аналитика фондов*\n\n"
-        "Выбери фонд для детальной аналитики или воспользуйся сравнением.",
+        "Выбери фонд для детальной аналитики, посмотри новости или пройди курс лекций.",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
+
+async def lectures_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает меню с лекциями"""
+    query = update.callback_query
+    keyboard = get_lecture_buttons()
+    await query.edit_message_text(
+        "🎓 *Курс лекций по инвестициям*\n\n"
+        "Выбери лекцию для прослушивания:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+async def send_lecture(update: Update, context: ContextTypes.DEFAULT_TYPE, lecture_id: str):
+    """Отправляет аудио-лекцию"""
+    query = update.callback_query
+    
+    # Находим лекцию по ID
+    lecture = next((l for l in LECTURES if l["id"] == lecture_id), None)
+    if not lecture:
+        await query.edit_message_text("❌ Лекция не найдена")
+        return
+    
+    # Если есть file_id, отправляем аудио
+    if lecture.get("file_id"):
+        try:
+            await query.edit_message_text(f"🎧 Отправляю лекцию: {lecture['title']}...")
+            await update.effective_chat.send_audio(
+                audio=lecture["file_id"],
+                caption=f"🎓 *{lecture['title']}*\n\n{lecture['description']}",
+                parse_mode="Markdown",
+                title=lecture["title"]
+            )
+            
+            # Возвращаемся в меню лекций
+            await update.effective_chat.send_message(
+                "📚 Выбери следующую лекцию:",
+                reply_markup=get_lecture_buttons()
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ Ошибка при отправке лекции: {str(e)}")
+    else:
+        await query.edit_message_text(
+            f"❌ Аудиофайл для лекции *{lecture['title']}* не найден.\n\n"
+            f"Пожалуйста, добавьте file_id в список LECTURES.",
+            parse_mode="Markdown"
+        )
 
 async def analytics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -184,8 +254,58 @@ async def send_analytics_chart(update, period_days, period_name):
     buf.seek(0)
     plt.close()
     
-    # Отправляем фото в чат
     await update.effective_chat.send_photo(photo=buf, caption=f"📊 Динамика фондов Арсагеры за {period_name}")
+
+async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Анализирует изменения фондов за последние 3 дня"""
+    funds = {
+        "fa": "📈 Фонд акций",
+        "f4si": "📊 Смешанный фонд",
+        "fo": "📉 Облигации KP 1.55"
+    }
+    
+    result = "📊 *Новости фондов за последние 3 дня*\n\n"
+    threshold = 2.0
+    
+    for code, name in funds.items():
+        data = get_all_fund_data(code)
+        if not data or len(data) < 2:
+            result += f"{name}: ❌ нет данных\n"
+            continue
+            
+        current = data[-1]['nav_per_share']
+        
+        target_date = datetime.now() - timedelta(days=3)
+        closest = None
+        closest_diff = None
+        
+        for entry in data:
+            entry_date = datetime.strptime(entry['date'], "%Y-%m-%d")
+            if entry_date <= target_date:
+                diff = (target_date - entry_date).days
+                if closest_diff is None or diff < closest_diff:
+                    closest_diff = diff
+                    closest = entry
+        
+        if closest:
+            old_price = closest['nav_per_share']
+            change_percent = ((current - old_price) / old_price) * 100
+            
+            if change_percent > threshold:
+                status = f"📈 рост (+{round(change_percent, 2)}%)"
+            elif change_percent < -threshold:
+                status = f"📉 падение ({round(change_percent, 2)}%)"
+            else:
+                status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
+            
+            result += f"{name}: {status}\n"
+        else:
+            result += f"{name}: ❌ нет данных за 3 дня\n"
+    
+    result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
+    result += "📌 Для подробной статистики — /start"
+    
+    await update.message.reply_text(result, parse_mode="Markdown")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -198,12 +318,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
             [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
             [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
-            [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")]
+            [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")],
+            [InlineKeyboardButton("🎓 Курс лекций", callback_data="lectures")],
+            [InlineKeyboardButton("📊 Новости фондов", callback_data="check_changes")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.effective_chat.send_message(
             "🔶 *Арсагера — Аналитика фондов*\n\n"
-            "Выбери фонд для детальной аналитики или воспользуйся сравнением.",
+            "Выбери фонд для детальной аналитики, посмотри новости или пройди курс лекций.",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
@@ -211,6 +333,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "analytics":
         await analytics_menu(update, context)
+        return
+
+    if data == "lectures":
+        await lectures_menu(update, context)
+        return
+
+    if data == "check_changes":
+        # Создаём фейковый update для check_changes
+        await check_changes(update, context)
+        return
+
+    if data.startswith("lecture_"):
+        lecture_id = data[8:]  # Убираем "lecture_"
+        await send_lecture(update, context, lecture_id)
         return
 
     if data in ["fa", "f4si", "fo"]:
@@ -249,59 +385,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Используй /start для начала работы.")
-
-async def check_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Анализирует изменения фондов за последние 3 дня"""
-    funds = {
-        "fa": "📈 Фонд акций",
-        "f4si": "📊 Смешанный фонд",
-        "fo": "📉 Облигации KP 1.55"
-    }
-    
-    result = "📊 *Новости фондов за последние 3 дня*\n\n"
-    threshold = 2.0
-    
-    for code, name in funds.items():
-        data = get_all_fund_data(code)
-        if not data or len(data) < 2:
-            result += f"{name}: ❌ нет данных\n"
-            continue
-            
-        current = data[-1]['nav_per_share']
-        
-        # Ищем цену 3 дня назад (или ближайшую доступную)
-        target_date = datetime.now() - timedelta(days=3)
-        closest = None
-        closest_diff = None
-        
-        for entry in data:
-            entry_date = datetime.strptime(entry['date'], "%Y-%m-%d")
-            if entry_date <= target_date:
-                diff = (target_date - entry_date).days
-                if closest_diff is None or diff < closest_diff:
-                    closest_diff = diff
-                    closest = entry
-        
-        if closest:
-            old_price = closest['nav_per_share']
-            change_percent = ((current - old_price) / old_price) * 100
-            
-            if change_percent > threshold:
-                status = f"📈 рост (+{round(change_percent, 2)}%)"
-            elif change_percent < -threshold:
-                status = f"📉 падение ({round(change_percent, 2)}%)"
-            else:
-                status = f"⚖️ стабильно ({round(change_percent, 2)}%)"
-            
-            result += f"{name}: {status}\n"
-        else:
-            result += f"{name}: ❌ нет данных за 3 дня\n"
-    
-    result += f"\n🔔 Порог срабатывания: ±{threshold}%\n"
-    result += "📌 Для подробной статистики — /start"
-    
-    await update.message.reply_text(result, parse_mode="Markdown")
+    await update.message.reply_text(
+        "🤖 *Доступные команды:*\n\n"
+        "/start — Главное меню\n"
+        "/analytics — Аналитика фондов\n"
+        "/check — Новости фондов за 3 дня\n"
+        "/help — Помощь",
+        parse_mode="Markdown"
+    )
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -310,7 +401,7 @@ def main():
     app.add_handler(CommandHandler("check", check_changes))
     app.add_handler(CommandHandler("analytics", analytics_command))
     app.add_handler(CallbackQueryHandler(button_callback))
-    print("Бот Арсагера с аналитикой запущен...")
+    print("Бот Арсагера с лекциями запущен...")
     app.run_polling()
 
 if __name__ == "__main__":
