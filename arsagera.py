@@ -188,7 +188,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
         [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")],
         [InlineKeyboardButton("📊 Новости фондов", callback_data="check_changes")],
-        [InlineKeyboardButton("🎓 Курс лекций", callback_data="lectures")]
+        [InlineKeyboardButton("🎓 Курс лекций", callback_data="lectures")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
@@ -374,11 +374,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.delete()
         keyboard = [
             [InlineKeyboardButton("📈 Фонд акций", callback_data="fa")],
-            [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
             [InlineKeyboardButton("📉 Облигации KP 1.55", callback_data="fo")],
+            [InlineKeyboardButton("📊 Смешанный фонд", callback_data="f4si")],
             [InlineKeyboardButton("📊 Аналитика (сравнение)", callback_data="analytics")],
+            [InlineKeyboardButton("📊 Новости фондов", callback_data="check_changes")],
             [InlineKeyboardButton("🎓 Курс лекций", callback_data="lectures")],
-            [InlineKeyboardButton("📊 Новости фондов", callback_data="check_changes")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.effective_chat.send_message(
